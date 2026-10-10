@@ -1,0 +1,93 @@
+# Half-disc underwater robot. Inert concept, dimensions in mm.
+import FreeCAD as App
+import FreeCADGui as Gui
+import Part, math, os
+from FreeCAD import Vector as V
+SPAN=600
+R=45
+WALL=4
+FLAP_ANGLE=35
+D=App.newDocument('HalfDiscCaptureRobot')
+P=D.addObject('Spreadsheet::Sheet','Parameters')
+for c,t in [('A1','Harpoon extension: 0 retracted, 1 extended'),('B1','0'),('A2','Wingspan mm'),('B2',str(SPAN)),('A3','Bore diameter mm'),('B3',str(R*2)),('A4','Edit B1 for motion; resize using macro constants.')]: P.set(c,t)
+P.setAlias('B1','Extension')
+P.setColumnWidth('A',390)
+body=D.addObject('App::Part','HullAndTunnel')
+flaps=D.addObject('App::Part','CaptureFlaps')
+slider=D.addObject('App::Part','RetractableAssembly')
+slider.setExpression('Placement.Base.y','-Parameters.Extension * 140')
+red=(0.48,0.10,0.12); gray=(0.32,0.36,0.40); silver=(0.72,0.75,0.78)
+def add(name,shape,color=gray,group=body):
+    o=D.addObject('PartDesign::Feature',name);o.Shape=shape;group.addObject(o)
+    o.ViewObject.ShapeColor=color;o.ViewObject.LineColor=(0.12,0.13,0.15)
+    return o
+def poly(points):
+    v=[V(*p) for p in points];return Part.makePolygon(v+[v[0]])
+def outline(radius,z,rear=25):
+    return poly([(radius*math.cos(math.pi+math.pi*i/96),rear+radius*math.sin(math.pi+math.pi*i/96),z) for i in range(97)])
+radius=SPAN/2
+sections=[outline(radius*.89,-24),outline(radius,-5),outline(radius,5),outline(radius*.89,24)]
+hull=Part.makeLoft(sections,True,True)
+channel=Part.makeBox(104,440,110,V(-52,-310,-55))
+add('UnifiedHalfDiscHull',hull.cut(channel),red)
+armor=Part.Face(outline(radius*.79,24,18)).extrude(V(0,0,3))
+add('HalfDiscUpperArmor',armor.cut(channel))
+# Bridges connect both halves around the central capture channel.
+add('UpperBridge',Part.makeBox(140,24,8,V(-70,1,53)))
+add('LowerBridge',Part.makeBox(140,24,8,V(-70,1,-61)))
+for x in [-64,56]:
+    add('BridgeSupport'+str(abs(x)),Part.makeBox(8,24,100,V(x,1,-50)))
+outer=Part.makeCylinder(R+WALL,370,V(0,-285,0),V(0,1,0))
+inner=Part.makeCylinder(R,372,V(0,-286,0),V(0,1,0))
+o=add('CaptureTunnel',outer.cut(inner));o.ViewObject.Transparency=65
+for i,y in enumerate([-285,-145,80]):
+    ring=Part.makeCylinder(53,5,V(0,y,0),V(0,1,0)).cut(Part.makeCylinder(R,7,V(0,y-1,0),V(0,1,0)))
+    add('TunnelRing%d'%i,ring,red)
+length=30
+for row,y in enumerate([-254,-176]):
+    for i in range(8):
+        inward=length*math.sin(math.radians(FLAP_ANGLE))
+        run=length*math.cos(math.radians(FLAP_ANGLE))
+        plate=Part.Face(poly([(-13,y,R-1),(13,y,R-1),(8.5,y+run,R-1-inward),(-8.5,y+run,R-1-inward)])).extrude(V(0,0,-2))
+        angle=i*45+row*22.5
+        plate.rotate(V(0,0,0),V(0,1,0),angle)
+        add('Flap_%d_%d'%(row,i),plate,(.84,.60,.16),flaps)
+        hinge=Part.makeCylinder(2,26,V(-13,y,R-1),V(1,0,0))
+        hinge.rotate(V(0,0,0),V(0,1,0),angle)
+        add('Hinge_%d_%d'%(row,i),hinge,silver,flaps)
+add('InertShaft',Part.makeCylinder(3,262,V(0,-192,0),V(0,1,0)),silver,slider)
+add('InertHarpoonTip',Part.makeCone(8,0,28,V(0,-192,0),V(0,-1,0)),silver,slider)
+add('SliderCarriage',Part.makeCylinder(13,16,V(0,61,0),V(0,1,0)),gray,slider)
+for i,x in enumerate([-17,17]):
+    add('GuideRail%d'%i,Part.makeCylinder(2,297,V(x,-220,-17),V(0,1,0)))
+for i in range(12):
+    a=math.radians(i*30)
+    add('RearCageRail%d'%i,Part.makeCylinder(2.5,58,V(43*math.sin(a),84,43*math.cos(a)),V(0,1,0)),silver)
+end=Part.makeCylinder(49,4,V(0,140,0),V(0,1,0))
+for x in [-28,-14,0,14,28]:
+    for z in [-28,-14,0,14,28]:
+        if x*x+z*z<38*38: end=end.cut(Part.makeCylinder(4.5,6,V(x,139,z),V(0,1,0)))
+add('PerforatedRearClosure',end)
+for i,x in enumerate([-96,96]):
+    add('SensorPod%d'%i,Part.makeCylinder(10,48,V(x,-157,25),V(0,1,0)))
+    add('SensorLens%d'%i,Part.makeCylinder(7,2,V(x,-159,25),V(0,1,0)),(.1,.75,.85))
+for i,x in enumerate([-105,105]):
+    p=V(x,25,-3)
+    shroud=Part.makeCylinder(19,55,p,V(0,1,0)).cut(Part.makeCylinder(14,57,p-V(0,1,0),V(0,1,0)))
+    add('FictionalThrusterShroud%d'%i,shroud)
+D.recompute()
+Gui.activeDocument().activeView().viewAxonometric()
+Gui.activeDocument().activeView().fitAll()
+try:
+    from PySide import QtGui
+    dialog=QtGui.QFileDialog
+except ImportError:
+    from PySide2 import QtWidgets
+    dialog=QtWidgets.QFileDialog
+choice=dialog.getSaveFileName(None,'Save half-disc robot',os.path.expanduser('~/HalfDiscCaptureRobot.FCStd'),'FreeCAD document (*.FCStd)')
+path=choice[0] if isinstance(choice,tuple) else choice
+if path:
+    path=str(path)
+    if not path.lower().endswith('.fcstd'):path+='.FCStd'
+    D.saveAs(path)
+App.Console.PrintMessage('Half-disc robot created. Parameters B1: 0 retracted, 1 extended. Forward = -Y.\n')
