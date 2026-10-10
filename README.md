@@ -49,9 +49,6 @@ Space pause/resume · R reset · 1–5 views (5 robot POV with depth telemetry) 
 
 **Identification disclaimer:** The code uses a simulated rule-based species flag (`Fish.native`), not image-based machine learning. **Energy disclaimer:** Wh numbers are illustrative—not field-validated. The capture/neutralization, robot scale, fluid motions and habitats are also simulated. We have not field-tested a real-world mechanism or established a local lionfish population survey.
 
-## For Devpost
-
-Devpost does **not** execute uploaded Python code. Provide a link to a public GitHub repository with these files and attach/upload a 60–180 second screen recording of the working app and screenshots. Use `docs/DEVPOST_SUBMISSION.md` as an editable starting point. Add your real team member names, attribution and actual test observations. The repo should include this README and requirements so judges can reproduce the demo.
 
 ## Testing
 
